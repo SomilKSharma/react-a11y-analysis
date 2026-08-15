@@ -15,11 +15,11 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
 
-_HERE = Path(__file__).resolve().parent
-SRC = _HERE / "merged-paper.md"
-DST = _HERE / "merged-paper.docx"
-FIGDIR = _HERE.parent / "figures"
+SRC = Path(__file__).resolve().parent / "merged-paper.md"
+DST = Path(__file__).resolve().parent / "merged-paper.docx"
+FIGDIR = Path(__file__).resolve().parent.parent / "figures"
 
 BODY = "Times New Roman"
 BLACK = RGBColor(0, 0, 0)
@@ -27,13 +27,13 @@ GREY = RGBColor(0x55, 0x55, 0x55)
 
 # caption lines now read "*Figure N. ...*"; map the figure NUMBER to its file
 FIG_BY_NUM = {
-    "1": "fig1_parallel_trends.png",
-    "2": "fig2_dynamic_did.png",
-    "3": "fig3_transitions.png",
-    "4": "fig7_result2_sim.png",
-    "5": "fig5_tail_did.png",
-    "6": "fig6_size_distortion.png",
-    "7": "fig7_axes_forest.png",
+    "1": "fig7_axes_forest.png",      # 4.2 per-axis ATT forest
+    "2": "fig1_parallel_trends.png",  # 4.3 pre-trend event study
+    "3": "fig2_dynamic_did.png",      # 4.4 dynamic DiD event study
+    "4": "fig3_transitions.png",      # 5.3 transition matrices (enriched)
+    "5": "fig8_result2_sim.png",      # 5.5 utilization-refutation simulation
+    "6": "fig6_size_distortion.png",  # 6.1 Monte Carlo size study
+    "7": "fig5_tail_did.png",         # 6.4 tail exceedance (enriched)
 }
 
 doc = Document()
@@ -56,44 +56,101 @@ def set_repeat_header(row):
 GREEK = {r"\rho":"ρ", r"\lambda":"λ", r"\mu":"μ", r"\beta":"β", r"\alpha":"α",
          r"\gamma":"γ", r"\delta":"δ", r"\sigma":"σ", r"\pi":"π", r"\chi":"χ",
          r"\varepsilon":"ε", r"\hat":"", r"\approx":"≈", r"\ge":"≥", r"\le":"≤",
-         r"\times":"×", r"\in":"∈", r"\to":"→", r"\sum":"Σ", r"\cdot":"·", r"\,":" "}
-SUB = {"0":"₀","1":"₁","2":"₂","3":"₃","4":"₄","5":"₅","6":"₆","7":"₇","8":"₈","9":"₉",
-       "+":"₊","-":"₋","i":"ᵢ","j":"ⱼ","k":"ₖ","t":"ₜ"}
-SUP = {"2":"²","3":"³"}
+         r"\times":"×", r"\in":"∈", r"\to":"→", r"\sum":"Σ", r"\cdot":"·", r"\,":" ",
+         # macros that previously fell through and printed literally ("mathbbE[Phi(")
+         r"\Phi":"Φ", r"\phi":"φ", r"\Pr":"Pr", r"\mid":"|", r"\sqrt":"√",
+         r"\mathbb":"", r"\ell":"ℓ", r"\infty":"∞", r"\pm":"±", r"\neq":"≠"}
+# sentinel markers -> real Word superscript/subscript runs (no caret fallbacks,
+# no reliance on the sparse Unicode sub/superscript alphabet)
+SUB_A, SUB_B, SUP_A, SUP_B = "\x01", "\x02", "\x03", "\x04"
+MARKED = re.compile(r"([\x01\x03][^\x02\x04]*[\x02\x04])")
 
 def delatex(text):
-    """Convert inline LaTeX ($...$) to readable Unicode for a Word manuscript."""
+    """Convert inline LaTeX ($...$) for a Word manuscript. Greek and operators
+    become Unicode; sub/superscripts become marked spans that add_runs renders
+    with real Word character formatting."""
     def conv(m):
         x = m.group(1)
+        # \text{post} -> {post}: KEEP the braces so the _{...} rule below captures the
+        # whole word. Stripping them first left "_post" and subscripted only the "p"
+        # ("rho_post" rendered as a p-subscript followed by a literal "ost").
+        x = re.sub(r"\\(?:text|mathrm|mathbf|mathit|mathbb)\{([^}]*)\}", r"{\1}", x)
         for a, b in GREEK.items(): x = x.replace(a, b)
-        x = re.sub(r"\\text\{([^}]*)\}", r"\1", x)
-        x = re.sub(r"\\(?:mathrm|mathbf|mathit)\{([^}]*)\}", r"\1", x)
-        # subscripts: _{...} or _x
-        x = re.sub(r"_\{([^}]*)\}", lambda mm: "".join(SUB.get(c, c) for c in mm.group(1)), x)
-        x = re.sub(r"_([0-9A-Za-z+\-])", lambda mm: SUB.get(mm.group(1), mm.group(1)), x)
-        # superscripts: ^{...} or ^x
-        x = re.sub(r"\^\{([^}]*)\}", lambda mm: "".join(SUP.get(c, "^"+c) for c in mm.group(1)) if all(c in SUP for c in mm.group(1)) else "^"+mm.group(1), x)
-        x = re.sub(r"\^([0-9])", lambda mm: SUP.get(mm.group(1), "^"+mm.group(1)), x)
-        x = x.replace("\\", "").replace("{","").replace("}","")
+        x = re.sub(r"_\{([^}]*)\}", lambda mm: SUB_A + mm.group(1) + SUB_B, x)
+        x = re.sub(r"_([0-9A-Za-z+\-])", lambda mm: SUB_A + mm.group(1) + SUB_B, x)
+        x = re.sub(r"\^\{([^}]*)\}", lambda mm: SUP_A + mm.group(1) + SUP_B, x)
+        x = re.sub(r"\^([0-9A-Za-z+\-])", lambda mm: SUP_A + mm.group(1) + SUP_B, x)
+        x = x.replace("\\", "").replace("{", "").replace("}", "")
         return x.strip()
     return re.sub(r"\$([^$]+)\$", conv, text)
 
-INLINE = re.compile(r"(\*\*.+?\*\*|\*[^*]+?\*|`[^`]+?`)")
-def add_runs(par, text, size=11, italic_all=False):
-    text = delatex(text)
-    for tok in INLINE.split(text):
-        if not tok: continue
-        if tok.startswith("**") and tok.endswith("**"):
-            run = par.add_run(tok[2:-2]); run.bold = True
-        elif tok.startswith("`") and tok.endswith("`"):
-            run = par.add_run(tok[1:-1]); run.font.name = "Courier New"; run.font.size = Pt(size-1)
-        elif tok.startswith("*") and tok.endswith("*") and len(tok) > 2:
-            run = par.add_run(tok[1:-1]); run.italic = True
+
+def add_hyperlink(par, url, text, size=11):
+    """Insert a real clickable hyperlink (python-docx has no native helper)."""
+    rid = par.part.relate_to(url, RT.HYPERLINK, is_external=True)
+    link = OxmlElement("w:hyperlink"); link.set(qn("r:id"), rid)
+    run = OxmlElement("w:r"); rpr = OxmlElement("w:rPr")
+    for tag, val in (("w:color", "0563C1"), ("w:u", "single")):
+        e = OxmlElement(tag)
+        e.set(qn("w:val"), "single" if tag == "w:u" else val); rpr.append(e)
+    rf = OxmlElement("w:rFonts"); rf.set(qn("w:ascii"), BODY); rf.set(qn("w:hAnsi"), BODY)
+    rpr.append(rf)
+    sz = OxmlElement("w:sz"); sz.set(qn("w:val"), str(int(size * 2))); rpr.append(sz)
+    run.append(rpr)
+    t = OxmlElement("w:t"); t.text = text; t.set(qn("xml:space"), "preserve")
+    run.append(t); link.append(run); par._p.append(link)
+
+INLINE = re.compile(r"(\*\*.+?\*\*|(?<!\*)\*[^*]+?\*(?!\*)|`[^`]+?`|\[[^\]]+?\]\([^)]+?\))", re.S)
+LINK = re.compile(r"^\[([^\]]+)\]\(([^)]+)\)$")
+
+def parse_spans(text, bold=False, italic=False, code=False):
+    """Recursively resolve nested markdown emphasis into styled spans.
+    Needed because *italic* inside **bold** was previously swallowed by the
+    bold match and printed with literal asterisks."""
+    spans, pos = [], 0
+    for m in INLINE.finditer(text):
+        if m.start() > pos:
+            spans.append((text[pos:m.start()], bold, italic, code, None))
+        tok = m.group(0)
+        if tok.startswith("**"):
+            spans += parse_spans(tok[2:-2], True, italic, code)
+        elif tok.startswith("`"):
+            spans.append((tok[1:-1], bold, italic, True, None))
+        elif tok.startswith("["):
+            lm = LINK.match(tok)
+            spans.append((lm.group(1), bold, italic, code, lm.group(2)))
         else:
-            run = par.add_run(tok)
-        if not run.font.name: run.font.name = BODY
-        if not run.font.size: run.font.size = Pt(size)
-        if italic_all: run.italic = True
+            spans += parse_spans(tok[1:-1], bold, True, code)
+        pos = m.end()
+    if pos < len(text):
+        spans.append((text[pos:], bold, italic, code, None))
+    return spans
+
+def add_runs(par, text, size=11, italic_all=False):
+    for body, bold, italic, code, url in parse_spans(delatex(text)):
+        if url:
+            add_hyperlink(par, url, body, size); continue
+        for part in MARKED.split(body):
+            if not part: continue
+            sub = part.startswith(SUB_A); sup = part.startswith(SUP_A)
+            run = par.add_run(part[1:-1] if (sub or sup) else part)
+            if bold: run.bold = True
+            if italic or italic_all: run.italic = True
+            run.font.name = "Courier New" if code else BODY
+            run.font.size = Pt(size - 1 if code else size)
+            if sub: run.font.subscript = True
+            if sup: run.font.superscript = True
+
+def _emit(par, body, size, *, italic=False):
+    """Plain-span emitter for display equations (already delatex'd)."""
+    for part in MARKED.split(body):
+        if not part: continue
+        sub = part.startswith(SUB_A); sup = part.startswith(SUP_A)
+        run = par.add_run(part[1:-1] if (sub or sup) else part)
+        if italic: run.italic = True
+        run.font.name = BODY; run.font.size = Pt(size)
+        if sub: run.font.subscript = True
+        if sup: run.font.superscript = True
 
 def _border(el, edge, sz="4", color="000000"):
     e = OxmlElement(f"w:{edge}")
@@ -179,7 +236,14 @@ while i < len(lines):
         i += 1; continue
 
     if re.match(r"^\d+\.\s", s):
-        p = doc.add_paragraph(style="List Number"); add_runs(p, re.sub(r"^\d+\.\s","",s).strip())
+        # Emit the number as literal text with a hanging indent. Word's "List Number"
+        # style continues one sequence across the whole document, which restarted the
+        # five static axes at 6 and the reference list at 11.
+        p = doc.add_paragraph()
+        p.paragraph_format.left_indent = Inches(0.45)
+        p.paragraph_format.first_line_indent = Inches(-0.30)
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        add_runs(p, s)
         i += 1; continue
     if s.startswith("- ") or s.startswith("* "):
         p = doc.add_paragraph(style="List Bullet"); add_runs(p, s[2:].strip())
@@ -193,7 +257,7 @@ while i < len(lines):
         if "$" not in eq:  # if delatex didn't fire (no inner $), convert manually
             eq = delatex("$" + s.strip("$").strip() + "$")
         p = doc.add_paragraph(); p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = p.add_run(eq); run.italic = True; run.font.name = BODY; run.font.size = Pt(11)
+        _emit(p, eq, 11, italic=True)   # routed through _emit so sub/sup markers render
         i += 1; continue
 
     p = doc.add_paragraph()
