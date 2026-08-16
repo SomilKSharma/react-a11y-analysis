@@ -1,9 +1,9 @@
 """
 Self-contained robust DiD + dynamics re-analysis (superseded; provenance only).
-Pure numpy/pandas (no scipy/statsmodels needed) so the replication package
-has minimal dependencies. Implements:
+Pure numpy/pandas (no scipy/statsmodels needed) to keep dependencies minimal.
+Implements:
 
-  - TWFE DiD with repo-clustered (CR1) SEs              -> reproduces Table 4
+  - TWFE DiD with repo-clustered (CR1) SEs
   - Callaway-Sant'Anna (2021) ATT(g,t) with NOT-YET-TREATED controls,
     aggregated to an overall ATT and to an event-study (dynamic) profile
   - Borusyak-Jaravel-Spiess (2024) imputation estimator (never/not-yet-treated
