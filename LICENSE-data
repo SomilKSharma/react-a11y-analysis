@@ -16,7 +16,7 @@ This data license applies to:
   - data/enriched_dynamics.json
   - data/ratings.csv
   - any *.csv / *.json regenerated under data/ by run_all.sh
-  - the full repos.db database archived on Zenodo
+  - the full repos.db measurement database
 
 You are free to:
   - Share — copy and redistribute the material in any medium or format
@@ -25,12 +25,10 @@ You are free to:
 
 Under the following terms:
   - Attribution — You must give appropriate credit, provide a link to the
-    license, and indicate if changes were made. Cite:
+    license, and indicate if changes were made. Credit:
 
-      Sharma, S. (2026). No Detectable Accessibility Regression from AI
-      Coding-Tool Adoption: A Bounded Null from 446 React/TypeScript
-      Repositories under Staggered Difference-in-Differences. Replication
-      package.
+      Somil Sharma, react-a11y-analysis.
+      https://github.com/SomilKSharma/react-a11y-analysis
 
 The full legal text of CC BY 4.0 is available at:
   https://creativecommons.org/licenses/by/4.0/legalcode

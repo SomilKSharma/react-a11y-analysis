@@ -26,7 +26,7 @@ from pathlib import Path
 ROOT = Path(f"{_ROOT}")
 MAIN = ROOT / "stage5_out" / "table_main.csv"
 HET = ROOT / "stage5_out" / "table_heterogeneity.csv"
-OUTDIR = ROOT / "EMSE-submission" / "analysis" / "dynamics_out"
+OUTDIR = ROOT / "provenance" / "dynamics_out"
 OUTDIR.mkdir(parents=True, exist_ok=True)
 
 BASELINE_AXE = 0.0913   # treated-pre mean axe_renderable_per_file

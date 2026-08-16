@@ -1,5 +1,5 @@
 """
-Self-contained robust DiD + dynamics re-analysis for the EMSE revision.
+Self-contained robust DiD + dynamics re-analysis (superseded; provenance only).
 Pure numpy/pandas (no scipy/statsmodels needed) so the replication package
 has minimal dependencies. Implements:
 
@@ -433,7 +433,7 @@ if __name__ == "__main__":
 
         results[label] = res
 
-    OUTJSON = f"{_ROOT}/EMSE-submission/analysis/dynamics_out/robust_did_results.json"
+    OUTJSON = f"{_ROOT}/provenance/dynamics_out/robust_did_results.json"
     import os
     os.makedirs(os.path.dirname(OUTJSON), exist_ok=True)
     with open(OUTJSON, "w") as f:

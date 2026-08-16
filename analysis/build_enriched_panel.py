@@ -21,7 +21,7 @@ import sqlite3
 import numpy as np
 import pandas as pd
 
-# Paths resolve relative to the repo. repos.db (large; archived on Zenodo) is
+# Paths resolve relative to the repo. repos.db (large; not committed) is
 # expected at the repo root; override with the REPOS_DB env var if elsewhere.
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _DATA = os.path.join(_ROOT, "data")

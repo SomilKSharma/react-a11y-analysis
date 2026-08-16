@@ -18,5 +18,5 @@ results/
 .DS_Store
 *.swp
 
-# The full SQLite database is archived on Zenodo, not committed (see README).
+# The full SQLite measurement database is not committed (see README).
 repos.db

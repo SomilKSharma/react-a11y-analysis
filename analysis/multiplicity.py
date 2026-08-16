@@ -1,6 +1,6 @@
 """
 Benjamini-Hochberg multiplicity correction across the accessibility axes
-(Table 5). Reads the matched-panel TWFE p-values produced by estimate_enriched.py
+across axes. Reads the matched-panel TWFE p-values produced by estimate_enriched.py
 and applies BH-FDR. Pure numpy. Deterministic.
 """
 import os

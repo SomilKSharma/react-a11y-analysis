@@ -1,81 +1,112 @@
-# No Detectable Accessibility Regression from AI Coding-Tool Adoption
+# react-a11y-analysis
 
-Replication package for the manuscript:
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Data: CC BY 4.0](https://img.shields.io/badge/Data-CC%20BY%204.0-blue.svg)](LICENSE-data)
 
-> **No Detectable Accessibility Regression from AI Coding-Tool Adoption: A Bounded Null from 446 React/TypeScript Repositories under Staggered Difference-in-Differences.**
-> Somil Sharma (Independent Researcher). Submitted to *Empirical Software Engineering*.
+**A measurement pipeline for the accessibility of React/TypeScript codebases over
+time** — a render-independent AST analyzer, a panel builder that turns raw git
+history into a repo-month dataset, and a self-contained estimator suite that runs on
+`numpy` and `pandas` alone.
 
-A staggered difference-in-differences study of whether adopting AI coding assistants
-(Cursor, GitHub Copilot) degrades the **source-detectable** web accessibility of
-React/TypeScript repositories. Over **446 repositories and 13,702 repo-months** (a
-propensity-matched **181-repo** subset as the primary identification panel), measured
-along four accessibility axes with a render-independent TypeScript-AST analyzer, the
-result is a **comprehensive, tightly-bounded null**: no axis shows a treatment effect
-under two-way fixed effects or a heterogeneity-robust imputation estimator, equivalence
-(TOST) testing excludes effects larger than ±5% of baseline on the dense axes, and the
-only beyond-mean signal is a modest, robust increase in month-to-month *state persistence*
-(less churn, not better or worse quality).
+It was built to answer one question at scale: does adopting an AI coding assistant
+change the source-detectable accessibility of a frontend codebase? It measured 446
+repositories across 13,702 repo-months and found no detectable effect, bounded to
+within ±5% on the dense axes. **[FINDINGS.md](FINDINGS.md)** has the full result,
+including the two false positives that had to be killed to get there.
 
-## Reproduce everything in one command
+The analyzer that does the measuring is also the basis for
+**[qualm](https://github.com/SomilKSharma/qualm)**, a developer-facing accessibility
+linter for React/TypeScript that runs in CI.
+
+## Run it
 
 ```bash
 pip install -r requirements.txt
 ./run_all.sh
 ```
 
-This regenerates every table and figure from the **shipped** data in `data/` — the full
-SQLite source database (`repos.db`) is **not** required for reproduction (it is archived on
-Zenodo and only needed to rebuild the panels from scratch). All estimators are pure
-`numpy`/`pandas`; no R, scipy, or statsmodels are needed.
+Every table, figure, and estimate regenerates from the CSVs committed in `data/` — no
+database, no R, no scipy, no statsmodels. Takes a couple of minutes.
 
-## Repository layout
+## What's in here
+
+### The analyzer
+
+`analysis/a11y_analyzer.js` — a TypeScript-AST accessibility analyzer that reads
+component source rather than rendered DOM. Five axes, deterministic, and it covers
+100% of components including the ones a headless browser cannot mount (60.4% of
+snapshots in this corpus failed to render under a runtime pipeline).
+
+Trade-off, stated plainly: it sees semantic structure, keyboard affordances, and ARIA
+usage. It cannot see computed colour contrast or live focus order, and no static
+method can.
+
+### The pipeline
+
+| Script | What it does |
+|---|---|
+| `analysis/stage4_scale.py` | Walk repository history, measure each snapshot with the AST analyzer |
+| `analysis/build_enriched_panel.py` | Build the repo-month panel and propensity-match the arms |
+| `analysis/estimate_enriched.py` | Two-way fixed effects, heterogeneity-robust imputation, wild-cluster bootstrap, equivalence tests |
+| `analysis/enriched_dynamics.py` | Beyond-mean battery: zero-inflation, Markov homogeneity, state persistence, volatility, tail risk |
+| `analysis/tobit_enriched.py` | Censoring-aware Tobit for the axes that pile up at their ceiling (`--selftest` validates it against simulated panels) |
+| `analysis/multiplicity.py` | Benjamini–Hochberg correction across axes |
+| `analysis/raters_3independent.py` | Multi-rater construct validation of the semantic score |
+
+Both estimators and every inference routine are implemented directly — the wild-cluster
+bootstrap, the Tobit likelihood and its delta-method standard errors, the
+Chamberlain–Mundlak correction, TOST equivalence. That is why the dependency list is
+two packages long.
+
+### The simulations
+
+Each exists because a claim needed checking rather than asserting:
+
+- `size_distortion_sim.py` — how badly a naive pooled test over-rejects on clustered,
+  zero-inflated panels (answer: up to 100% of the time under a common trend)
+- `result2_simulation.py` — the degrees-of-freedom degeneracy that quantile binning
+  induces in Markov regime tests
+- `utilization_refutation_sim.py` — written to confirm a convenient assumption, and it
+  refuted it instead; the assumption was withdrawn
+
+### The data
+
+`data/` ships the panels and result artifacts, all regenerable:
 
 ```
-analysis/      analysis scripts (all paths resolve relative to the repo)
-  a11y_analyzer.js            render-free TypeScript-AST accessibility analyzer (5 axes, 100% coverage)
-  build_enriched_panel.py     build + propensity-match the panels from repos.db  (needs repos.db)
-  stage4_scale.py             measure repositories with the AST analyzer          (needs repos.db)
-  estimate_enriched.py        TWFE + BJS imputation + wild-cluster bootstrap + TOST   -> Tables 4, 4a, 4b
-  enriched_dynamics.py        zero-inflation, Markov homogeneity, persistence/spectral-gap, volatility, tail-DiD -> Tables 7, 9; Figures 2-3
-  tobit_enriched.py           censoring-aware CRE Tobit on the ceiling-censored score axes -> Table 6b (Sec 4.7)
-                              (`--selftest` validates the estimator on simulated censored panels)
-  regen_figures_enriched.py   transition-matrix + tail-exceedance plots from the enriched panel -> Figures 4, 7
-  multiplicity.py             Benjamini-Hochberg correction across axes              -> Table 5
-  fig_enriched.py             per-axis ATT forest plot                              -> Figure 1
-  size_distortion_sim.py      Monte Carlo size study (naive vs cluster-robust)      -> Figure 6
-  utilization_refutation_sim.py  refutation of the withdrawn utilization conjecture -> Figure 5
-  result2_simulation.py       zero-inflation df-degeneracy demonstration (Result 1)
-  raters_3independent.py      multi-rater construct validation                      -> Appendix D
-data/          shipped panels + result artifacts
-  enriched_panel.csv          matched primary panel (181 repos / 5,956 repo-months)
-  enriched_panel_full.csv     full robustness panel (446 repos / 13,702 repo-months)
-  enriched_matches.csv        propensity-score matched pairs
-  enriched_results_matched.csv / enriched_results_full.csv   per-axis estimates (regenerated by run_all.sh)
-  enriched_dynamics.json      dynamics battery output (regenerated by run_all.sh)
-  ratings.csv                 expert-rater scores for construct validation
-  tobit_RESULTS.csv           censoring-aware Tobit estimates (Table 6b)
-figures/       manuscript figures (PNG + PDF), numbered as in the manuscript
-provenance/    superseded 74-repo, two-axis analysis, retained for provenance only
-  stage5_did.py, robust_did.py, wild_cluster_bootstrap.py,
-  equivalence_and_multiplicity.py, control_screen.py, panel.csv
-  (NOT used for any primary result; see the manuscript's Replication note)
-paper/         merged-paper.md, merged-paper.docx, build_docx.py
+enriched_panel.csv         matched primary panel      (181 repos / 5,956 repo-months)
+enriched_panel_full.csv    full robustness panel      (446 repos / 13,702 repo-months)
+enriched_matches.csv       propensity-matched pairs
+enriched_results_*.csv     per-axis estimates          (regenerated by run_all.sh)
+enriched_dynamics.json     dynamics battery output     (regenerated by run_all.sh)
+ratings.csv                expert-rater construct-validation scores
+tobit_RESULTS.csv          censoring-aware estimates
 ```
 
-## Data and the SQLite database
+`figures/` holds the generated plots as PNG and PDF.
 
-The shipped CSVs in `data/` are sufficient to reproduce **all** reported numbers. To rebuild
-the panels from raw repository history you also need `repos.db` (the full SQLite source
-database), which is archived on Zenodo (it is large and is excluded from git via
-`.gitignore`). With `repos.db` present in the repo root:
+`provenance/` holds a superseded 74-repo, two-axis analysis. It feeds no current
+result and is kept only so the earlier numbers stay auditable.
+
+### Rebuilding from raw history
+
+The shipped CSVs are enough to regenerate everything reported. Rebuilding the panels
+from raw repository history additionally needs `repos.db`, the SQLite measurement
+database, which is too large to commit and is gitignored. With it present at the repo
+root:
 
 ```bash
-python analysis/build_enriched_panel.py   # rebuilds data/enriched_panel*.csv
+python analysis/build_enriched_panel.py
 ```
 
-## Citing
+## Related
 
-See `CITATION.cff`. Code is released under the MIT License (`LICENSE`); the data files are
-released under CC BY 4.0 (`LICENSE-data`). The Zenodo concept DOI
-[10.5281/zenodo.20994931](https://doi.org/10.5281/zenodo.20994931) resolves to the latest
-archived version.
+[**qualm**](https://github.com/SomilKSharma/qualm) — the same render-independent AST
+approach packaged as a linter you can run on a pull request. `npx qualm-a11y ./src`.
+It detects defects; it makes no claim about what caused them, for the reason spelled
+out in [FINDINGS.md](FINDINGS.md).
+
+## License
+
+Code is MIT ([LICENSE](LICENSE)). Data files are CC BY 4.0
+([LICENSE-data](LICENSE-data)).

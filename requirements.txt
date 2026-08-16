@@ -1,4 +1,4 @@
-# Dependencies for the enriched-panel reproduction pipeline (run_all.sh).
+# Dependencies for the analysis pipeline (run_all.sh).
 # Python 3.10+ recommended. All estimators are pure numpy/pandas — no scipy,
 # statsmodels, or R are required (the DiD, BJS imputation, wild-cluster
 # bootstrap, TOST, BH correction, and Markov tests are reimplemented in numpy
@@ -6,5 +6,3 @@
 numpy>=1.24
 pandas>=2.0
 matplotlib>=3.7
-# Only needed to rebuild paper/merged-paper.docx from paper/merged-paper.md:
-python-docx>=1.1

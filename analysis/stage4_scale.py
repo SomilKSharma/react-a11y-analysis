@@ -46,7 +46,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-# repos.db (large; archived on Zenodo) is expected at the repo root.
+# repos.db (large; not committed) is expected at the repo root.
 # Override with the REPOS_DB env var if it lives elsewhere.
 DB_PATH = os.environ.get("REPOS_DB", str((HERE / ".." / "repos.db").resolve()))
 ANALYZER = str(HERE / "a11y_analyzer.js")

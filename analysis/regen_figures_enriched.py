@@ -4,7 +4,7 @@ Regenerate Figures 3 and 5 from the ENRICHED matched panel.
 
 Both were previously produced by regen_figures.py, which reads the superseded
 74-repo dynamics_out/dynamics_results.json. The paper text now reports the
-enriched-panel values (Table 7, Table 9, Sec 5.3-5.4, Sec 6.4), so the figures
+enriched-panel values (persistence, homogeneity, tail risk), so the figures
 must come from the same source. This script recomputes the transition matrices
 and tail-exceedance rates from enriched_panel.csv using the exact estimators in
 enriched_dynamics.py, and writes png + vector pdf.
